@@ -253,11 +253,16 @@ getInt64 = getting B.getInt64le B.getInt64be 8
 getDouble :: DBusGet Double
 getDouble = getting B.getFloat64le B.getFloat64be 8
 
+skipNulTerminator :: DBusGet ()
+skipNulTerminator = do
+    nul <- getWord8
+    when (nul /= 0) $ fail "Textual value is not NUL-terminated." 
+
 getText :: DBusGet Text.Text
 getText = do
     len <- getWord32
     bs <- lift $ B.getByteString (fromIntegral len)
-    guard . (== 0) =<< getWord8
+    skipNulTerminator
     case Text.decodeUtf8' bs of
         Left _ -> fail "could not decode UTF 8"
         Right txt -> return txt
@@ -269,7 +274,7 @@ getSignatures :: ReaderT Endian B.Get [DBusType]
 getSignatures = do
     len <- getWord8
     bs <- lift $ B.getByteString (fromIntegral len)
-    guard . (0 ==) =<< getWord8
+    skipNulTerminator
     case parseSigs bs of
          Nothing -> fail $ "could not parse signature" ++ show bs
          Just s -> return s
